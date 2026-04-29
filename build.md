@@ -7,4 +7,6 @@ Use [zygisk-detach](https://github.com/j-hc/zygisk-detach) to detach YouTube and
   
 CLI: MorpheApp/morphe-cli-1.8.0-dev.8-all.jar  
 Patches: MorpheApp/patches-1.25.0-dev.8.mpp  
-[Changelog](https://github.com/MorpheApp/morphe-patches/releases/tag/v1.25.0-dev.8)  
+[Changelog](https://github.com/MorpheApp/morphe-patches/releases/tag/v1.25.0-dev.8)
+
+CLI: ReVanced/revanced-cli-6.0.0-all.jar    
