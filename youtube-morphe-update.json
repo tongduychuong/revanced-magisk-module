@@ -1,6 +1,6 @@
 {
-  "version": "v21.16.256 (patches dev.9.mpp)",
-  "versionCode": 49,
-  "zipUrl": "https://github.com/tongduychuong/revanced-magisk-module/releases/download/49/youtube-morphe-module-v21.16.256-all.zip",
+  "version": "v21.16.256 (patches dev.10.mpp)",
+  "versionCode": 50,
+  "zipUrl": "https://github.com/tongduychuong/revanced-magisk-module/releases/download/50/youtube-morphe-module-v21.16.256-all.zip",
   "changelog": "https://raw.githubusercontent.com/tongduychuong/revanced-magisk-module/update/build.md"
 }
