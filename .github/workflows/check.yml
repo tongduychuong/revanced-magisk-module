@@ -1,0 +1,95 @@
+name: Update YouTube Version
+
+on:
+  workflow_dispatch:
+  schedule:
+     - cron: "40 15 * * *"
+
+jobs:
+  update-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run updater
+        run: |
+          cat << 'EOF' > script.py
+          import requests, re, os, sys
+
+          url = "https://youtube.en.uptodown.com/android"
+          headers = {"User-Agent": "Mozilla/5.0"}
+
+          try:
+              html = requests.get(url, headers=headers, timeout=10).text
+          except:
+              print("Request failed")
+              sys.exit(1)
+
+          match = re.search(r"softwareVersion\":\"([0-9.]+)", html)
+          version = match.group(1) if match else "unknown"
+
+          print("New version:", version)
+
+          if version == "unknown":
+              print("Invalid version → stop")
+              sys.exit(1)
+
+          # đọc version cũ
+          old_version = ""
+          if os.path.exists("version.txt"):
+              old_version = open("version.txt").read().strip()
+
+          if version == old_version:
+              print("No change → skip")
+              sys.exit(0)
+
+          # lưu version
+          open("version.txt", "w").write(version)
+
+          # đọc config.toml
+          with open("config.toml", "r") as f:
+              content = f.read()
+
+          # chỉ update dòng version
+          new_content = re.sub(
+              r'(?m)^version\s*=\s*".*?"',
+              f'version = "{version}"',
+              content
+          )
+
+          # nếu chưa có version thì thêm vào
+          if content == new_content:
+              print("No version line → adding")
+              new_content += f'\nversion = "{version}"\n'
+
+          with open("config.toml", "w") as f:
+              f.write(new_content)
+
+          print("Updated to", version)
+          EOF
+
+          python script.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git add version.txt config.toml
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            VERSION=$(cat version.txt)
+            git commit -m "chore: update version to $VERSION"
+            git push
+          fi
