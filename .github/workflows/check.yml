@@ -21,84 +21,86 @@ jobs:
           python-version: "3.x"
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4
+        run: pip install cloudscraper beautifulsoup4
 
       - name: Run updater
         run: |
           python - << 'EOF'
-          import requests
+          import cloudscraper
           import re
           import os
           import sys
           from bs4 import BeautifulSoup
 
-          HEADERS = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-              "Accept-Language": "en-US,en;q=0.9",
-          }
+          scraper = cloudscraper.create_scraper(
+              browser={
+                  'browser': 'chrome',
+                  'platform': 'windows',
+                  'desktop': True
+              }
+          )
 
           def parse_version_tuple(v_str):
               try:
-                  return tuple(map(int, v_str.split('.')))
+                  return tuple(map(int, v_str.strip().split('.')))
               except ValueError:
                   return (0,)
 
-          def get_version_from_uptodown():
-              url = "https://youtube.en.uptodown.com/android/versions"
+          found_versions = set()
+
+          # Regex mới: Linh hoạt số chữ số ở từng phân đoạn (ví dụ: 21.32.2, 21.31.254 đều khớp)
+          VERSION_REGEX = r'\b([1-9][0-9]\.[0-9]+\.[0-9]+)\b'
+
+          uptodown_urls = [
+              "https://youtube.en.uptodown.com/android/versions",
+              "https://youtube.en.uptodown.com/android"
+          ]
+
+          for url in uptodown_urls:
               try:
-                  res = requests.get(url, headers=HEADERS, timeout=10)
+                  res = scraper.get(url, timeout=15)
+                  print(f"[Uptodown] Fetching {url} -> Status: {res.status_code}")
                   if res.status_code == 200:
-                      matches = re.findall(r'\b([1-9][0-9]\.[0-9]{2}\.[0-9]{2,3})\b', res.text)
-                      if matches:
-                          latest = max(set(matches), key=parse_version_tuple)
-                          print(f"[Uptodown] Detected version: {latest}")
-                          return latest
-                  else:
-                      print(f"[Uptodown] Blocked with HTTP Status {res.status_code}")
+                      soup = BeautifulSoup(res.text, 'html.parser')
+                      
+                      # Quét qua các thẻ chứa phiên bản
+                      for el in soup.find_all(class_=re.compile(r'version', re.I)):
+                          text = el.get_text(strip=True)
+                          m = re.search(VERSION_REGEX, text)
+                          if m:
+                              found_versions.add(m.group(1))
+                      
+                      # Quét Regex toàn bộ trang HTML
+                      matches = re.findall(VERSION_REGEX, res.text)
+                      for m in matches:
+                          found_versions.add(m)
               except Exception as e:
                   print(f"[Uptodown] Error: {e}")
-              return None
 
-          def get_version_from_apkpure():
-              url = "https://apkpure.net/youtube/com.google.android.youtube"
+          # Dự phòng APKMirror nếu Uptodown không có dữ liệu
+          if not found_versions:
               try:
-                  res = requests.get(url, headers=HEADERS, timeout=10)
+                  apkmirror_url = "https://www.apkmirror.com/uploads/?appcategory=youtube"
+                  res = scraper.get(apkmirror_url, timeout=15)
+                  print(f"[APKMirror] Fetching -> Status: {res.status_code}")
                   if res.status_code == 200:
-                      matches = re.findall(r'\b([1-9][0-9]\.[0-9]{2}\.[0-9]{2,3})\b', res.text)
-                      if matches:
-                          latest = max(set(matches), key=parse_version_tuple)
-                          print(f"[APKPure] Detected version: {latest}")
-                          return latest
-                  else:
-                      print(f"[APKPure] Blocked with HTTP Status {res.status_code}")
+                      matches = re.findall(VERSION_REGEX, res.text)
+                      for m in matches:
+                          found_versions.add(m)
               except Exception as e:
-                  print(f"[APKPure] Error: {e}")
-              return None
+                  print(f"[APKMirror] Error: {e}")
 
-          def get_version_from_apkcombo():
-              url = "https://apkcombo.com/youtube/com.google.android.youtube/"
-              try:
-                  res = requests.get(url, headers=HEADERS, timeout=10)
-                  if res.status_code == 200:
-                      matches = re.findall(r'\b([1-9][0-9]\.[0-9]{2}\.[0-9]{2,3})\b', res.text)
-                      if matches:
-                          latest = max(set(matches), key=parse_version_tuple)
-                          print(f"[APKCombo] Detected version: {latest}")
-                          return latest
-                  else:
-                      print(f"[APKCombo] Blocked with HTTP Status {res.status_code}")
-              except Exception as e:
-                  print(f"[APKCombo] Error: {e}")
-              return None
+          # Lọc các phiên bản hợp lệ (chỉ lấy bản từ 18.x.x trở lên để tránh bắt nhầm chuỗi số khác)
+          valid_versions = [v for v in found_versions if parse_version_tuple(v) >= (18, 0, 0)]
 
-          # Thử lần lượt các nguồn
-          version = get_version_from_uptodown() or get_version_from_apkpure() or get_version_from_apkcombo()
-
-          if not version:
-              print("Critical: Failed to fetch version from all sources.")
+          if not valid_versions:
+              print("Critical Error: Could not extract any valid version.")
               sys.exit(1)
 
-          print(f"Final selected version: {version}")
+          # Lấy phiên bản lớn nhất
+          latest_version = max(valid_versions, key=parse_version_tuple)
+          print(f"All candidates found: {sorted(valid_versions, key=parse_version_tuple, reverse=True)[:10]}")
+          print(f"==> Selected Latest Version: {latest_version}")
 
           # Đọc phiên bản cũ
           old_version = ""
@@ -106,15 +108,15 @@ jobs:
               with open("version.txt", "r") as f:
                   old_version = f.read().strip()
 
-          if version == old_version:
+          if latest_version == old_version:
               print("No version change detected -> skipping update.")
               sys.exit(0)
 
-          # Lưu phiên bản mới vào version.txt
+          # Lưu phiên bản mới
           with open("version.txt", "w") as f:
-              f.write(version)
+              f.write(latest_version)
 
-          # Cập nhật file config.toml
+          # Cập nhật config.toml
           content = ""
           if os.path.exists("config.toml"):
               with open("config.toml", "r") as f:
@@ -122,18 +124,18 @@ jobs:
 
           new_content, replacements = re.subn(
               r'(?m)^version\s*=\s*".*?"',
-              f'version = "{version}"',
+              f'version = "{latest_version}"',
               content
           )
 
           if replacements == 0:
               print("No existing 'version' line found -> appending to config.toml")
-              new_content = new_content.strip() + f'\nversion = "{version}"\n'
+              new_content = new_content.strip() + f'\nversion = "{latest_version}"\n'
 
           with open("config.toml", "w") as f:
               f.write(new_content)
 
-          print(f"Successfully updated config files to version {version}")
+          print(f"Successfully updated config files to version {latest_version}")
           EOF
 
       - name: Commit and push changes
