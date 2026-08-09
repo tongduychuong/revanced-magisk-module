@@ -149,6 +149,6 @@ jobs:
             echo "No changes to commit"
           else
             VERSION=$(cat version.txt)
-            git commit -m "chore: update YouTube version to $VERSION"
+            git commit -m "update YouTube version to $VERSION"
             git push
           fi
