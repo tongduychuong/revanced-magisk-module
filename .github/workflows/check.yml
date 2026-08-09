@@ -30,54 +30,75 @@ jobs:
           import re
           import os
           import sys
-          import json
           from bs4 import BeautifulSoup
 
-          url = "https://youtube.en.uptodown.com/android/versions"
-          headers = {
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+          HEADERS = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+              "Accept-Language": "en-US,en;q=0.9",
           }
 
-          try:
-              res = requests.get(url, headers=headers, timeout=15)
-              res.raise_for_status()
-              html = res.text
-          except Exception as e:
-              print(f"Failed fetching Uptodown: {e}")
-              sys.exit(1)
-
-          soup = BeautifulSoup(html, 'html.parser')
-          found_versions = set()
-
-          # Cách 1: Đọc từ dữ liệu cấu trúc JSON-LD trên trang
-          for script in soup.find_all('script', type='application/ld+json'):
-              try:
-                  data = json.loads(script.string)
-                  if isinstance(data, dict) and 'softwareVersion' in data:
-                      found_versions.add(data['softwareVersion'].strip())
-              except Exception:
-                  pass
-
-          # Cách 2: Quét tất cả các định dạng phiên bản dạng X.XX.XX (ví dụ: 19.10.38 hoặc 20.01.32)
-          matches = re.findall(r'\b([1-9][0-9]\.[0-9]{2}\.[0-9]{2,3})\b', html)
-          for m in matches:
-              found_versions.add(m)
-
-          # Hàm chuyển đổi chuỗi phiên bản thành tuple số để so sánh (VD: "19.10.38" -> (19, 10, 38))
-          def parse_version(v_str):
+          def parse_version_tuple(v_str):
               try:
                   return tuple(map(int, v_str.split('.')))
               except ValueError:
                   return (0,)
 
-          if not found_versions:
-              print("Invalid version extracted -> stopping workflow execution.")
+          def get_version_from_uptodown():
+              url = "https://youtube.en.uptodown.com/android/versions"
+              try:
+                  res = requests.get(url, headers=HEADERS, timeout=10)
+                  if res.status_code == 200:
+                      matches = re.findall(r'\b([1-9][0-9]\.[0-9]{2}\.[0-9]{2,3})\b', res.text)
+                      if matches:
+                          latest = max(set(matches), key=parse_version_tuple)
+                          print(f"[Uptodown] Detected version: {latest}")
+                          return latest
+                  else:
+                      print(f"[Uptodown] Blocked with HTTP Status {res.status_code}")
+              except Exception as e:
+                  print(f"[Uptodown] Error: {e}")
+              return None
+
+          def get_version_from_apkpure():
+              url = "https://apkpure.net/youtube/com.google.android.youtube"
+              try:
+                  res = requests.get(url, headers=HEADERS, timeout=10)
+                  if res.status_code == 200:
+                      matches = re.findall(r'\b([1-9][0-9]\.[0-9]{2}\.[0-9]{2,3})\b', res.text)
+                      if matches:
+                          latest = max(set(matches), key=parse_version_tuple)
+                          print(f"[APKPure] Detected version: {latest}")
+                          return latest
+                  else:
+                      print(f"[APKPure] Blocked with HTTP Status {res.status_code}")
+              except Exception as e:
+                  print(f"[APKPure] Error: {e}")
+              return None
+
+          def get_version_from_apkcombo():
+              url = "https://apkcombo.com/youtube/com.google.android.youtube/"
+              try:
+                  res = requests.get(url, headers=HEADERS, timeout=10)
+                  if res.status_code == 200:
+                      matches = re.findall(r'\b([1-9][0-9]\.[0-9]{2}\.[0-9]{2,3})\b', res.text)
+                      if matches:
+                          latest = max(set(matches), key=parse_version_tuple)
+                          print(f"[APKCombo] Detected version: {latest}")
+                          return latest
+                  else:
+                      print(f"[APKCombo] Blocked with HTTP Status {res.status_code}")
+              except Exception as e:
+                  print(f"[APKCombo] Error: {e}")
+              return None
+
+          # Thử lần lượt các nguồn
+          version = get_version_from_uptodown() or get_version_from_apkpure() or get_version_from_apkcombo()
+
+          if not version:
+              print("Critical: Failed to fetch version from all sources.")
               sys.exit(1)
 
-          # Chọn phiên bản cao nhất/mới nhất
-          latest_version = max(found_versions, key=parse_version)
-          print(f"Found versions: {sorted(list(found_versions), key=parse_version, reverse=True)[:5]}")
-          print(f"Latest detected version: {latest_version}")
+          print(f"Final selected version: {version}")
 
           # Đọc phiên bản cũ
           old_version = ""
@@ -85,13 +106,13 @@ jobs:
               with open("version.txt", "r") as f:
                   old_version = f.read().strip()
 
-          if latest_version == old_version:
+          if version == old_version:
               print("No version change detected -> skipping update.")
               sys.exit(0)
 
-          # Lưu phiên bản mới
+          # Lưu phiên bản mới vào version.txt
           with open("version.txt", "w") as f:
-              f.write(latest_version)
+              f.write(version)
 
           # Cập nhật file config.toml
           content = ""
@@ -101,18 +122,18 @@ jobs:
 
           new_content, replacements = re.subn(
               r'(?m)^version\s*=\s*".*?"',
-              f'version = "{latest_version}"',
+              f'version = "{version}"',
               content
           )
 
           if replacements == 0:
               print("No existing 'version' line found -> appending to config.toml")
-              new_content = new_content.strip() + f'\nversion = "{latest_version}"\n'
+              new_content = new_content.strip() + f'\nversion = "{version}"\n'
 
           with open("config.toml", "w") as f:
               f.write(new_content)
 
-          print(f"Successfully updated config files to version {latest_version}")
+          print(f"Successfully updated config files to version {version}")
           EOF
 
       - name: Commit and push changes
