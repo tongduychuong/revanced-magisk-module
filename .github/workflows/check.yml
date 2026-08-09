@@ -3,14 +3,17 @@ name: Update YouTube Version
 on:
   workflow_dispatch:
   schedule:
-     - cron: "40 15 * * *"
+    - cron: "40 15 * * *"
 
 jobs:
   update-version:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -18,71 +21,104 @@ jobs:
           python-version: "3.x"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests beautifulsoup4
 
       - name: Run updater
         run: |
-          cat << 'EOF' > script.py
-          import requests, re, os, sys
+          python - << 'EOF'
+          import requests
+          import re
+          import os
+          import sys
+          import json
+          from bs4 import BeautifulSoup
 
-          url = "https://youtube.en.uptodown.com/android"
-          headers = {"User-Agent": "Mozilla/5.0"}
+          url = "https://youtube.en.uptodown.com/android/versions"
+          headers = {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+          }
 
           try:
-              html = requests.get(url, headers=headers, timeout=10).text
-          except:
-              print("Request failed")
+              res = requests.get(url, headers=headers, timeout=15)
+              res.raise_for_status()
+              html = res.text
+          except Exception as e:
+              print(f"Failed fetching Uptodown: {e}")
               sys.exit(1)
 
-          match = re.search(r"softwareVersion\":\"([0-9.]+)", html)
-          version = match.group(1) if match else "unknown"
+          soup = BeautifulSoup(html, 'html.parser')
+          found_versions = set()
 
-          print("New version:", version)
+          # Cách 1: Đọc từ dữ liệu cấu trúc JSON-LD trên trang
+          for script in soup.find_all('script', type='application/ld+json'):
+              try:
+                  data = json.loads(script.string)
+                  if isinstance(data, dict) and 'softwareVersion' in data:
+                      found_versions.add(data['softwareVersion'].strip())
+              except Exception:
+                  pass
 
-          if version == "unknown":
-              print("Invalid version → stop")
+          # Cách 2: Quét tất cả các định dạng phiên bản dạng X.XX.XX (ví dụ: 19.10.38 hoặc 20.01.32)
+          matches = re.findall(r'\b([1-9][0-9]\.[0-9]{2}\.[0-9]{2,3})\b', html)
+          for m in matches:
+              found_versions.add(m)
+
+          # Hàm chuyển đổi chuỗi phiên bản thành tuple số để so sánh (VD: "19.10.38" -> (19, 10, 38))
+          def parse_version(v_str):
+              try:
+                  return tuple(map(int, v_str.split('.')))
+              except ValueError:
+                  return (0,)
+
+          if not found_versions:
+              print("Invalid version extracted -> stopping workflow execution.")
               sys.exit(1)
 
-          # đọc version cũ
+          # Chọn phiên bản cao nhất/mới nhất
+          latest_version = max(found_versions, key=parse_version)
+          print(f"Found versions: {sorted(list(found_versions), key=parse_version, reverse=True)[:5]}")
+          print(f"Latest detected version: {latest_version}")
+
+          # Đọc phiên bản cũ
           old_version = ""
           if os.path.exists("version.txt"):
-              old_version = open("version.txt").read().strip()
+              with open("version.txt", "r") as f:
+                  old_version = f.read().strip()
 
-          if version == old_version:
-              print("No change → skip")
+          if latest_version == old_version:
+              print("No version change detected -> skipping update.")
               sys.exit(0)
 
-          # lưu version
-          open("version.txt", "w").write(version)
+          # Lưu phiên bản mới
+          with open("version.txt", "w") as f:
+              f.write(latest_version)
 
-          # đọc config.toml
-          with open("config.toml", "r") as f:
-              content = f.read()
+          # Cập nhật file config.toml
+          content = ""
+          if os.path.exists("config.toml"):
+              with open("config.toml", "r") as f:
+                  content = f.read()
 
-          # chỉ update dòng version
-          new_content = re.sub(
+          new_content, replacements = re.subn(
               r'(?m)^version\s*=\s*".*?"',
-              f'version = "{version}"',
+              f'version = "{latest_version}"',
               content
           )
 
-          # nếu chưa có version thì thêm vào
-          if content == new_content:
-              print("No version line → adding")
-              new_content += f'\nversion = "{version}"\n'
+          if replacements == 0:
+              print("No existing 'version' line found -> appending to config.toml")
+              new_content = new_content.strip() + f'\nversion = "{latest_version}"\n'
 
           with open("config.toml", "w") as f:
               f.write(new_content)
 
-          print("Updated to", version)
+          print(f"Successfully updated config files to version {latest_version}")
           EOF
 
-          python script.py
-
-      - name: Commit if changed
+      - name: Commit and push changes
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add version.txt config.toml
 
@@ -90,6 +126,6 @@ jobs:
             echo "No changes to commit"
           else
             VERSION=$(cat version.txt)
-            git commit -m "chore: update version to $VERSION"
+            git commit -m "chore: update YouTube version to $VERSION"
             git push
           fi
