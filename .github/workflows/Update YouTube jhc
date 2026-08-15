@@ -1,0 +1,78 @@
+name: Update YouTube jhc
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get latest YouTube version
+        shell: bash
+        run: |
+          set -e
+
+          URL="https://archive.org/download/jhc-apks/apks/com.google.android.youtube/"
+
+          echo "Đang kiểm tra Archive.org..."
+
+          HTML=$(curl -L --fail -A "Mozilla/5.0" "$URL")
+
+          VERSIONS=$(echo "$HTML" \
+            | grep -oE 'com\.google\.android\.youtube-[0-9]+(\.[0-9]+)+-all\.apk' \
+            | sed -E 's/com\.google\.android\.youtube-([0-9.]+)-all\.apk/\1/' \
+            | sort -V \
+            | uniq)
+
+          if [ -z "$VERSIONS" ]; then
+            echo "Không tìm thấy APK YouTube!"
+            exit 1
+          fi
+
+          LATEST=$(echo "$VERSIONS" | tail -n 1)
+
+          echo "Version mới nhất: $LATEST"
+
+          # Xuất version ra version.txt
+          echo "$LATEST" > version.txt
+
+          # Kiểm tra config.toml
+          if [ ! -f config.toml ]; then
+            echo "Không tìm thấy config.toml!"
+            exit 1
+          fi
+
+          # Cập nhật config.toml
+          sed -i -E \
+            "s/^version[[:space:]]*=[[:space:]]*\"[^\"]*\"/version = \"$LATEST\"/" \
+            config.toml
+
+          echo "config.toml:"
+          grep '^version' config.toml
+
+          echo "version.txt:"
+          cat version.txt
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add config.toml version.txt
+
+          if git diff --cached --quiet; then
+            echo "Version không thay đổi."
+          else
+            git commit -m "Update YouTube version"
+            git push
+          fi
