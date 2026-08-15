@@ -73,6 +73,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "Version không thay đổi."
           else
-            git commit -m "Update YouTube version"
+            git commit -m "Update YouTube version $LATEST"
             git push
           fi
