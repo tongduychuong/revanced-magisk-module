@@ -2,8 +2,8 @@ name: Update YouTube Version
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "40 15 * * *"
+  #schedule:
+  #  - cron: "40 15 * * *"
 
 jobs:
   update-version:
