@@ -1,14 +1,18 @@
-YouTube-Morphe-dev: 21.42.241  
+Music-Morphe (arm64-v8a): 9.30.53  
+Music-Morphe (arm-v7a): 9.30.53  
+YouTube-Morphe: 21.30.216  
+YouTube-Morphe-dev: 21.45.82  
 
 Install [Microg](https://github.com/MorpheApp/MicroG-RE/) for non-root YouTube and YT Music APKs  
 Use [zygisk-detach](https://github.com/j-hc/zygisk-detach) to detach YouTube and YT Music modules from Play Store  
 
 [revanced-magisk-module](https://github.com/j-hc/revanced-magisk-module)
   
-Patches: MorpheApp/morphe-patches/patches-1.49.0-dev.10.mpp  
-[Changelog](https://github.com/MorpheApp/morphe-patches/releases/tag/v1.49.0-dev.10)
+Patches: MorpheApp/morphe-patches/patches-2.2.0.mpp  
+[Changelog](https://github.com/MorpheApp/morphe-patches/releases/tag/v2.2.0)
 
-CLI: MorpheApp/morphe-cli/morphe-desktop-1.20.0-dev.5-all.jar    
+CLI: MorpheApp/morphe-cli/morphe-desktop-2.1.1-all.jar  
+Patches: MorpheApp/morphe-patches/patches-2.3.0-dev.2.mpp  
+[Changelog](https://github.com/MorpheApp/morphe-patches/releases/tag/v2.3.0-dev.2)
 
-Skipped:  
-Patches: MorpheApp/morphe-patches/patches-1.48.0.mpp            
+CLI: MorpheApp/morphe-cli/morphe-desktop-2.2.0-dev.12-all.jar    
