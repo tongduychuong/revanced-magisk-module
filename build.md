@@ -5,10 +5,10 @@ Use [zygisk-detach](https://github.com/j-hc/zygisk-detach) to detach YouTube and
 
 [revanced-magisk-module](https://github.com/j-hc/revanced-magisk-module)
   
-Patches: MorpheApp/morphe-patches/patches-2.3.0-dev.5.mpp  
-[Changelog](https://github.com/MorpheApp/morphe-patches/releases/tag/v2.3.0-dev.5)
+Patches: MorpheApp/morphe-patches/patches-2.3.0-dev.7.mpp  
+[Changelog](https://github.com/MorpheApp/morphe-patches/releases/tag/v2.3.0-dev.7)
 
-CLI: MorpheApp/morphe-cli/morphe-desktop-2.2.0-dev.18-all.jar    
+CLI: MorpheApp/morphe-cli/morphe-desktop-2.3.0-dev.1-all.jar    
 
 Skipped:  
-Patches: MorpheApp/morphe-patches/patches-2.2.0.mpp      
+Patches: MorpheApp/morphe-patches/patches-2.2.0.mpp        
